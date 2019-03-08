@@ -102,13 +102,14 @@ class Compression_Tree():
             size_limit (integer): Maximum array size allowed during training.
         """
         tf.enable_eager_execution()  #Once this is executed, no static graph can be created or run.
+        train_images = images.astype(np.float32)
         if save_path:
             pathlib.Path(save_path).mkdir(parents = True, exist_ok = True)
         trainer = train.Compression_Trainer(self.num_layers)
         for layer in self.nodes:
             for node in layer:
                 print('Layer {}, Node {} training'.format(node.layer, node.position))
-                isom_array = trainer.train_node(node.layer, node.position, images, threshold, size_limit)
+                isom_array = trainer.train_node(node.layer, node.position, train_images, threshold, size_limit)
                 node.isom = tf.constant(isom_array)
                 node.output_size = isom_array.shape[0]
                 if save_path:
@@ -227,3 +228,15 @@ class Node():
         batch_size = tf.shape(left_in)[0]
         kron = tf.reshape(outer, [batch_size, -1])
         self.output = tf.einsum('ij,aj->ai', self.isom, kron)
+
+if __name__ == '__main__':
+    #To generate a new tree:
+    
+    train_path = 'data/8_train'
+    tree_path = 'models/64_005'
+    num_pixels = 64
+    threshold = 0.005
+
+    test_images = data.load_data(train_path)[0]
+    tree = Compression_Tree(num_pixels)
+    tree.generate(test_images, threshold, save_path = tree_path)

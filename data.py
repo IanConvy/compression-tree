@@ -37,6 +37,10 @@ class DataGenerator:
         self.train_images = resize_images(self.train_images, new_shape)
         self.test_images = resize_images(self.test_images, new_shape)
 
+    def pad_images(self, top = 0, bottom = 0, left = 0, right = 0):
+        self.train_images = pad_images(self.train_images, top, bottom, left, right)
+        self.test_images = pad_images(self.test_images, top, bottom, left, right)
+
     def featurize(self, feat_funct):
         """
         Applies a featurization to the MNIST images.
@@ -110,6 +114,22 @@ def resize_images(images, shape):
         anti_aliasing = True,
         mode = 'constant')
     return new_images
+
+def pad_images(images, top, bottom, left, right):
+    (num_images, height, width) = images.shape
+    if top:
+        top_pad = np.zeros([num_images, top, width])
+        images = np.concatenate([top_pad, images], axis = 1)
+    if bottom:
+        bottom_pad = np.zeros([num_images, bottom, width])
+        images = np.concatenate([images, bottom_pad], axis = 1)
+    if left:
+        left_pad = np.zeros([num_images, height + top + bottom, left])
+        images = np.concatenate([left_pad, images], axis = 2)
+    if right:
+        right_pad = np.zeros([num_images, height + top + bottom, right])
+        images = np.concatenate([images, right_pad], axis = 2)
+    return images
 
 def batch_generator(images, labels, batch_size):
     """

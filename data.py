@@ -23,7 +23,7 @@ class DataGenerator:
         self.test_images = mnist_data[1][0]
         self.test_labels = mnist_data[1][1]
 
-    def scale_images(self, new_shape):
+    def scale(self, new_shape):
         """
         Resizes the images using Scikit-Image.
 
@@ -37,7 +37,18 @@ class DataGenerator:
         self.train_images = resize_images(self.train_images, new_shape)
         self.test_images = resize_images(self.test_images, new_shape)
 
-    def pad_images(self, top = 0, bottom = 0, left = 0, right = 0):
+    def pad(self, top = 0, bottom = 0, left = 0, right = 0):
+        """
+        Pads images using white pixels (value = 0).
+
+        This function should be run before featurizing and after scaling.
+
+        Parameters:
+            top (integer): Rows of padding to add to the top of images.
+            bottom (integer): Rows of padding to add to the bottom of images.
+            left (integer): Columns of padding to add to the left of images.
+            right (integer): Columns of padding to add to the right of images.
+        """
         self.train_images = pad_images(self.train_images, top, bottom, left, right)
         self.test_images = pad_images(self.test_images, top, bottom, left, right)
 
@@ -116,6 +127,16 @@ def resize_images(images, shape):
     return new_images
 
 def pad_images(images, top, bottom, left, right):
+    """
+    Add white pixel padding around the sides of a batch of images.
+
+    Parameters:
+        images (ndarray): Image batch to be padded.
+        top (integer): Rows of padding to add to the top of images.
+        bottom (integer): Rows of padding to add to the bottom of images.
+        left (integer): Columns of padding to add to the left of images.
+        right (integer): Columns of padding to add to the right of images.
+    """
     (num_images, height, width) = images.shape
     if top:
         top_pad = np.zeros([num_images, top, width])
@@ -206,7 +227,7 @@ def trig_feat(images):
 
 def split_data(images, labels, split):
     """
-    Splits data into two batches using a randomized order.
+    Splits data into two batches.
 
     Parameters:
         images (ndarray): Image batch to split
@@ -218,9 +239,6 @@ def split_data(images, labels, split):
         is left/right split.
     """
     num_images = images.shape[0]
-    random_perm = np.random.permutation(num_images)
-    randomized_images = images[random_perm]
-    randomized_labels = labels[random_perm]
     split_point = int(split * num_images)
     left_split = (images[:split_point], labels[:split_point])
     right_split = (images[split_point:], labels[split_point:])

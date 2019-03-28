@@ -29,7 +29,7 @@ class Compression_Tree():
         right_output (tensor): Output of the second half of the tree.
     """
 
-    def __init__(self, num_pixels):
+    def __init__(self, num_pixels, cutoff = 1):
         """
         Generates the node structure of the tree.
 
@@ -42,9 +42,10 @@ class Compression_Tree():
 
         Parameters:
             num_pixels (integer): Number of pixels to expect in the images.
+            cutoff (integer): Number of layers to skip from the top.
         """
         self.nodes = []
-        self.num_layers = int(np.log2(num_pixels)) - 1  #-1 since the tree terminates with two top nodes.
+        self.num_layers = int(np.log2(num_pixels)) - cutoff  #-1 since the tree terminates with two top nodes.
         for layer in range(self.num_layers):
             node_layer = []
             num_nodes = int(num_pixels / (2 ** (layer + 1)))  #Each layer divides the previous layer size by 2.
@@ -74,10 +75,10 @@ class Compression_Tree():
                     isom_array = np.load(str(array_path))
                     node.output_size = isom_array.shape[0]
                     node.isom = tf.constant(isom_array)
-        self.output_size = self.nodes[-1][0].output_size * self.nodes[-1][1].output_size
+        self.output_size = self.nodes[-1][0].output_size * self.nodes[-1][-1].output_size
         self.connect_tree()
 
-    def generate(self, images, threshold, save_path = False, size_limit =  5 * 10**8):
+    def generate(self, images, threshold, save_path = False, size_limit =  1 * 10**8):
         """
         Generate a new compression tree using a set of training images.
 
@@ -106,15 +107,22 @@ class Compression_Tree():
         if save_path:
             pathlib.Path(save_path).mkdir(parents = True, exist_ok = True)
         trainer = train.Compression_Trainer(self.num_layers)
+        size_exceeded = False
         for layer in self.nodes:
             for node in layer:
                 print('Layer {}, Node {} training'.format(node.layer, node.position))
                 isom_array = trainer.train_node(node.layer, node.position, train_images, threshold, size_limit)
-                node.isom = tf.constant(isom_array)
-                node.output_size = isom_array.shape[0]
-                if save_path:
-                    isom_path = pathlib.PurePath(save_path).joinpath(node.scope)
-                    np.save(str(isom_path), isom_array)
+                if isom_array is False:
+                    size_exceeded = True
+                else:
+                    node.isom = tf.constant(isom_array)
+                    node.output_size = isom_array.shape[0]
+                    if save_path:
+                        isom_path = pathlib.PurePath(save_path).joinpath(node.scope)
+                        np.save(str(isom_path), isom_array)
+            if size_exceeded:
+                print('Higher layers not trained.')
+                break
         print('Training Complete')
 
     def connect_tree(self):
@@ -141,7 +149,7 @@ class Compression_Tree():
                     right_in = self.nodes[node.layer - 1][left_pos + 1].output
                 node.create_compression_ops(left_in, right_in)
         self.left_output = self.nodes[-1][0].output
-        self.right_output = self.nodes[-1][1].output
+        self.right_output = self.nodes[-1][-1].output
 
     def compress(self, images):
         """
@@ -172,7 +180,7 @@ class Compression_Tree():
         plot will be displayed when this function is called.
         """
         plot_side = int(np.ceil(np.sqrt(self.num_layers)))  #Side length for square array big enough to hold all layer plots.
-        (fig, ax_array) = plt.subplots(plot_side, plot_side)
+        (unused_fig, ax_array) = plt.subplots(plot_side, plot_side)
         ax_vect = ax_array.flatten()
         for (layer_num, layer) in enumerate(self.nodes):
             x_values = []
@@ -210,6 +218,7 @@ class Node():
         self.layer = layer
         self.position = position
         self.scope = '{}_{}'.format(layer, position)
+        self.isom = None
 
     def create_compression_ops(self, left_in, right_in):
         """
@@ -232,11 +241,11 @@ class Node():
 if __name__ == '__main__':
     #To generate a new tree:
     
-    train_path = 'data/8_train'
-    tree_path = 'models/64_005'
-    num_pixels = 64
-    threshold = 0.005
+    train_path = 'data/4_train'
+    tree_path = 'models/4x4/000001'
+    num_pixels = 16
+    threshold = 0.000001
 
     test_images = data.load_data(train_path)[0]
-    tree = Compression_Tree(num_pixels)
+    tree = Compression_Tree(num_pixels, cutoff = 0)
     tree.generate(test_images, threshold, save_path = tree_path)

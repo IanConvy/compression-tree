@@ -84,14 +84,20 @@ class Compression_Trainer():
         """
         node = Training_Node(layer, position)
         self.training_nodes[layer][position] = node
-        (left_prev_out, right_prev_out) = self.feed_forward(train_images, layer, position, 0, 1)  #Used to determine batch size.
-        density_side_len = tf.size(left_prev_out) * tf.size(right_prev_out)
-        node.create_initial_params(density_side_len, threshold)
+        if layer > 0:
+            left_size = self.training_nodes[layer - 1][2*position].output_size
+            right_size = self.training_nodes[layer - 1][2*position + 1].output_size
+        else:
+            left_size = right_size = train_images.shape[1]
+        density_side_len = left_size * right_size
+        matrix_size = int((density_side_len)**2)
         num_images = train_images.shape[0]
-        batch_itr = get_batch_itr(density_side_len, size_limit, num_images)
-        if not batch_itr:
-            print('Size limit exceeded')
-            return
+        max_batch = min(size_limit // matrix_size, num_images)
+        if max_batch == 0:
+            print('Size limit exceeded.')
+            return False
+        node.create_initial_params(density_side_len, threshold)
+        batch_itr = get_batch_itr(max_batch, num_images)
         with tqdm(total = num_images) as pbar:
             for (batch_start, batch_size) in batch_itr:
                 pbar.set_postfix({'Batch Size' : batch_size})
@@ -264,7 +270,7 @@ class Training_Node():
         compr_out = tf.einsum('ij,aj->ai', self.isom_var, kron)
         return compr_out
 
-def get_batch_itr(density_side_len, limit, num_images):
+def get_batch_itr(max_batch, num_images):
     """
     Create iterator for mini-batches.
 
@@ -277,17 +283,12 @@ def get_batch_itr(density_side_len, limit, num_images):
     batch size is not a factor of the numer of images.
 
     Parameters:
-            density_side_len (integer): Size of feature space.
-            limit (integer): Max number of elements allowed in an array.
+            max_batch (integer): Largest allowed batch size.
             num_images (integer): Total number of images to be mini-batched.
 
     Yields:
         Tuple containing the starting index and size of the mini-batch.
     """
-    matrix_size = int((density_side_len)**2)
-    max_batch = min(limit // matrix_size, num_images)
-    if max_batch == 0:
-        return []
     clean_end = num_images // max_batch
     excess = num_images % max_batch
     batch_start = 0
